@@ -20,9 +20,9 @@ func runMigrations(url string) error {
 		return fmt.Errorf("failed to initialize migrations: %w", err)
 	}
 
-	// if err := migration.Down(); err != nil && err != migrate.ErrNoChange {
-	// 	return fmt.Errorf("failed to run down migrations: %w", err)
-	// }
+	if err := migration.Down(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to run down migrations: %w", err)
+	}
 
 	if err := migration.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("failed to run up migrations: %w", err)
@@ -41,10 +41,10 @@ func NewPostgresConnection() (*pgxpool.Pool, error) {
 	
 	connUrl := cfg.ConnectionString()
 	
-	err = runMigrations(connUrl)
-	if err != nil {
-		return nil, err
-	}
+	// err = runMigrations(connUrl)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	poolConfig, err := pgxpool.ParseConfig(connUrl)
 	if err != nil {

@@ -35,6 +35,6 @@ func (handler *UserHandler) GetUserById(response http.ResponseWriter, request *h
 	utils.WriteJSONResponse(response, http.StatusOK, userGet)
 }
 
-func (handler *UserHandler) SetupRoutes(server *http.ServeMux, baseUrl string, d *deps.AuthDependency) {
-	server.HandleFunc("GET " + baseUrl+ "/user/{id}", d.Protected(handler.GetUserById))
+func (handler *UserHandler) SetupRoutes(server *http.ServeMux, baseUrl string, authDeps *deps.AuthDependency) {
+	server.HandleFunc("GET " + baseUrl+ "/user/{id}", authDeps.Protected(handler.GetUserById))
 }

@@ -37,7 +37,9 @@ var (
 	ErrValidationError = APIError{Code: http.StatusBadRequest, Message: "validation error"}
 	ErrInvalidToken = APIError{Code: http.StatusUnauthorized, Message: "invalid token"}
 	ErrInvaliLoginData = APIError{Code: http.StatusUnauthorized, Message: "invalid login data"}
-	ErrDocumentAccessDenied = APIError{Code: http.StatusForbidden, Message: "access to document denied"}
+	ErrFailedToCreateToken = APIError{Code: http.StatusInternalServerError, Message: "failed to create token"}
+	ErrFailedToCreateStream = APIError{Code: http.StatusInternalServerError, Message: "failed to create room"}
+	ErrStreamIsNotLive = APIError{Code: http.StatusNotFound, Message: "stream is not live"}
 )
 
 

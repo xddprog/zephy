@@ -51,7 +51,6 @@ func (handler *AuthHandler) RefreshToken(response http.ResponseWriter, request *
 	refreshToken := request.URL.Query().Get("refresh_token")
 	user, err := handler.Service.RefreshToken(request.Context(), refreshToken)
 
-	response.WriteHeader(http.StatusAccepted)
 
 	if err != nil {
 		apierrors.WriteHTTPError(response, err)
