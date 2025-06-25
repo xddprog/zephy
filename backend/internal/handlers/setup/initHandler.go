@@ -34,7 +34,11 @@ func InitNewHandler[T types.HandlerInterface](emptyHandler T, db *pgxpool.Pool) 
 		return any(h).(T), nil
 	case *handlers.StreamHandler:
 		streamRepository := &repositories.StreamRepository{DB: db}
-		streamService := &services.StreamService{Repository: streamRepository, LivekitClient: *clients.NewLivekitClient()}
+		streamService := &services.StreamService{
+			Repository: streamRepository, 
+			LivekitClient: *clients.NewLivekitClient(),
+			RedisClient: *clients.NewRedisClient(),
+		}
 		*h = handlers.StreamHandler{StreamService: streamService}
 		return any(h).(T), nil
 

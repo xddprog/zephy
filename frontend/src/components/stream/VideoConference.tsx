@@ -1,24 +1,22 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { isEqualTrackRef, isTrackReference, isWeb, log } from '@livekit/components-core';
-
+import { isTrackReference, isWeb, log } from '@livekit/components-core';
 import {
-	CarouselLayout,
 	ConnectionStateToast,
 	ControlBar,
-	FocusLayout,
-	FocusLayoutContainer,
 	GridLayout,
 	LayoutContextProvider,
 	ParticipantTile,
 	RoomAudioRenderer,
 	useCreateLayoutContext,
+	useLocalParticipant,
 	usePinnedTracks,
+	useRoomContext,
 	useTracks,
 	type MessageDecoder,
 	type MessageEncoder,
 	type MessageFormatter,
 	type TrackReferenceOrPlaceholder,
-	type WidgetState,
+	type WidgetState
 } from '@livekit/components-react';
 import { RoomEvent, Track } from 'livekit-client';
 import React from 'react';
@@ -50,7 +48,7 @@ export interface VideoConferenceProps extends React.HTMLAttributes<HTMLDivElemen
  * @example
  * ```tsx
  * <LiveKitRoom>
- *   <VideoConference roomName="test-room" />
+ *   <VideoConference roomName="test-room" streamerIdentity="streamer" />
  * </LiveKitRoom>
  * ```
  * @public
@@ -64,19 +62,41 @@ export function VideoConference({
 	...props
 }: VideoConferenceProps) {
 	const [widgetState, setWidgetState] = React.useState<WidgetState>({
-		showChat: false,
+		showChat: true, // Чат виден по умолчанию
 		unreadMessages: 0,
 		showSettings: false,
 	});
 	const lastAutoFocusedScreenShareTrack = React.useRef<TrackReferenceOrPlaceholder | null>(null);
+	
+	const room = useRoomContext();
+	const localParticipant = useLocalParticipant();
 
+	// Фильтруем треки, чтобы показывать только треки стримера
 	const tracks = useTracks(
 		[
 			{ source: Track.Source.Camera, withPlaceholder: true },
 			{ source: Track.Source.ScreenShare, withPlaceholder: false },
 		],
 		{ updateOnlyOn: [RoomEvent.ActiveSpeakersChanged], onlySubscribed: false },
-	);
+	).filter((track) => track.participant.identity === streamInfo.streamerInfo.id);
+
+	// Управление публикацией треков
+	React.useEffect(() => {
+		console.log(localParticipant.localParticipant, streamInfo)
+		if (localParticipant.localParticipant.identity !== streamInfo.streamerInfo.id) {
+			// Отключаем публикацию для зрителей
+			localParticipant.localParticipant.setCameraEnabled(false).catch((err) =>
+				log.error('Не удалось отключить камеру:', err),
+			);
+			localParticipant.localParticipant.setMicrophoneEnabled(false).catch((err) =>
+				log.error('Не удалось отключить микрофон:', err),
+			);
+			localParticipant.localParticipant.setScreenShareEnabled(false).catch((err) =>
+				log.error('Не удалось отключить шаринг экрана:', err),
+			);
+		}
+		// Для стримера публикация управляется через LiveKitRoom (video/audio)
+	}, [localParticipant, streamInfo.streamerInfo.id]);
 
 	const widgetUpdate = (state: WidgetState) => {
 		log.debug('updating widget state', state);
@@ -89,11 +109,11 @@ export function VideoConference({
 		.filter(isTrackReference)
 		.filter((track) => track.publication.source === Track.Source.ScreenShare);
 
-	const focusTrack = usePinnedTracks(layoutContext)?.[0];
-	const carouselTracks = tracks.filter((track) => !isEqualTrackRef(track, focusTrack));
+	const focusTrack = usePinnedTracks(layoutContext)?.[0] || tracks.find(isTrackReference); // Фокус на треке стримера
+	const carouselTracks: TrackReferenceOrPlaceholder[] = []; // Отключаем карусель
 
 	React.useEffect(() => {
-		// Автофокус на шаринг экрана
+		// Автофокус на шаринг экрана стримера
 		if (
 			screenShareTracks.some((track) => track.publication.isSubscribed) &&
 			lastAutoFocusedScreenShareTrack.current === null
@@ -113,16 +133,6 @@ export function VideoConference({
 			layoutContext.pin.dispatch?.({ msg: 'clear_pin' });
 			lastAutoFocusedScreenShareTrack.current = null;
 		}
-		if (focusTrack && !isTrackReference(focusTrack)) {
-			const updatedFocusTrack = tracks.find(
-				(tr) =>
-					tr.participant.identity === focusTrack.participant.identity &&
-					tr.source === focusTrack.source,
-			);
-			if (updatedFocusTrack !== focusTrack && isTrackReference(updatedFocusTrack)) {
-				layoutContext.pin.dispatch?.({ msg: 'set_pin', trackReference: updatedFocusTrack });
-			}
-		}
 	}, [
 		screenShareTracks
 			.map((ref) => `${ref.publication.trackSid}_${ref.publication.isSubscribed}`)
@@ -133,28 +143,19 @@ export function VideoConference({
 
 	useWarnAboutMissingStyles();
 
-	return (
-		<div className="lk-video-conference" {...props}>
+	return focusTrack && (
+		<div className="lk-video-conference w-full" {...props}>
 			{isWeb() && (
 				<LayoutContextProvider value={layoutContext} onWidgetChange={widgetUpdate}>
-					<div className="lk-video-conference-inner">
-						{!focusTrack ? (
+					<div className="lk-video-conference-inner w-full">
+						{tracks.length > 0 ? (
 							<div className="lk-grid-layout-wrapper">
-								<GridLayout tracks={tracks}>
+								<GridLayout tracks={[focusTrack]}>
 									<ParticipantTile />
 								</GridLayout>
 							</div>
-						) : (
-							<div className="lk-focus-layout-wrapper">
-								<FocusLayoutContainer>
-									<CarouselLayout tracks={carouselTracks}>
-										<ParticipantTile />
-									</CarouselLayout>
-									{focusTrack && <FocusLayout trackRef={focusTrack} />}
-								</FocusLayoutContainer>
-							</div>
-						)}
-						<ControlBar controls={{ chat: false, settings: !!SettingsComponent }} /> {/* Отключаем встроенный чат */}
+						) : (<></>)}
+						<ControlBar controls={{ chat: true, settings: !!SettingsComponent }} />
 					</div>
 					<StreamChat streamId={streamInfo.id} />
 					{SettingsComponent && (
@@ -182,3 +183,7 @@ function useWarnAboutMissingStyles() {
 		}
 	}, []);
 }
+
+// src/components/FocusLayout.jsx
+
+// src/components/FocusLayout.jsx

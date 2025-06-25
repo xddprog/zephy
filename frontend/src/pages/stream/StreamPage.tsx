@@ -39,7 +39,6 @@ function StreamPage() {
                 <div className='flex justify-between'>
                     <StreamsMenu />
                     <StreamVideo
-                        streamId={streamId}
                         streamInfo={streamInfo}
                         token={tokenData.token}
                     />

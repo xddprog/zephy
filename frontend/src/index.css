@@ -7,12 +7,18 @@ html {
 	background: #1e2022;
 	margin: 0;
 }
+
 ::-webkit-scrollbar {
 	width: 0px;
-	}
+}
 
 
 html {
-	-ms-overflow-style: none; 
+	-ms-overflow-style: none;
 	scrollbar-width: none;
 }
+
+video {
+	width: 100%;
+}
+

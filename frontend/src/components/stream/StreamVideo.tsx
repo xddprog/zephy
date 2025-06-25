@@ -6,14 +6,11 @@ import { VideoConference } from './VideoConference';
 
 
 interface StreamVideoProps {
-    streamId: string;
     streamInfo: StreamInfo;
     token: string;
 }
 
-function StreamVideo({ streamId, streamInfo, token }: StreamVideoProps) {
-
-
+function StreamVideo({ streamInfo, token }: StreamVideoProps) {
     return streamInfo && token && (
         <div className="flex items-center justify-center bg-zinc-800 w-screen h-[500px]">
             <LiveKitRoom
@@ -22,6 +19,7 @@ function StreamVideo({ streamId, streamInfo, token }: StreamVideoProps) {
                 connect={true}
                 video={streamInfo?.isStreamer}
                 audio={streamInfo?.isStreamer}
+                className="w-full h-full flex-1"
             >
                 <VideoConference streamInfo={streamInfo} />
             </LiveKitRoom>

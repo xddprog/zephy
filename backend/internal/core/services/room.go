@@ -15,6 +15,7 @@ import (
 type StreamService struct {
 	Repository    *repositories.StreamRepository
 	LivekitClient clients.LivekitClient
+	RedisClient   clients.RedisClient
 }
 
 func (service *StreamService) GetStreamInfo(ctx context.Context, body io.ReadCloser, userId string, streamId string) (*models.StreamInfo, *apierrors.APIError) {
@@ -39,7 +40,7 @@ func (service *StreamService) GetStreamMessages(context context.Context, streamN
 	return messages, nil
 }
 
-func (service *StreamService) CreateToken(context context.Context, form io.ReadCloser, userId string, username string) (*models.TokenResponse, *apierrors.APIError) {
+func (service *StreamService) CreateToken(context context.Context, form io.ReadCloser, userId string) (*models.TokenResponse, *apierrors.APIError) {
 	var createTokenRequest models.CreateTokenRequest
 
 	if err := json.NewDecoder(form).Decode(&createTokenRequest); err != nil {
@@ -60,7 +61,7 @@ func (service *StreamService) CreateToken(context context.Context, form io.ReadC
 		context,
 		streamInfo.Id,
 		streamInfo.IsStreamer,
-		username,
+		userId,
 	)
 
 	if err != nil {

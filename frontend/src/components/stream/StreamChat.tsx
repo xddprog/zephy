@@ -23,7 +23,7 @@ const StreamChat = observer(({ streamId }: ChatProps) => {
 
     const { send } = useChat()
 
-    useDataChannel('chat', (msg) => {
+    useDataChannel(streamId, (msg) => {
         try {
             const parsed: StreamMessage = JSON.parse(new TextDecoder().decode(msg.payload));
             setMessages((prev) => {
@@ -58,7 +58,7 @@ const StreamChat = observer(({ streamId }: ChatProps) => {
                 message: inputMessage,
                 userId: userStore.user?.id,
                 username: userStore.user?.username
-            }), { topic: 'chat' });
+            }), { topic: streamId });
             setInputMessage('');
         }
     };

@@ -3,7 +3,9 @@ package clients
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"time"
 
 	lkauth "github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
@@ -41,18 +43,21 @@ func (client *LivekitClient) CreateNewStream(ctx context.Context, streamId strin
 }
 
 func (client *LivekitClient) AddChatHandler(ctx context.Context, streamId string, userId string, messageHandler MessageHandler) error {
+	sessionId := fmt.Sprintf("%d", time.Now().UnixNano())
+	uniqueIdentity := fmt.Sprintf("%s:%s", userId, sessionId)
 	stream, err := lksdk.ConnectToRoom(client.Url, lksdk.ConnectInfo{
 		APIKey:              client.ApiKey,
 		RoomName:            streamId,
 		APISecret:           client.ApiSecret,
-		ParticipantIdentity: userId,
+		ParticipantIdentity: uniqueIdentity,
 	}, lksdk.NewRoomCallback())
+	
 	if err != nil {
 		log.Printf("failed connect to room: %v", err)
 		return err
 	}
 
-	stream.RegisterTextStreamHandler("chat", func(reader *lksdk.TextStreamReader, participantIdentity string) {
+	stream.RegisterTextStreamHandler(streamId, func(reader *lksdk.TextStreamReader, participantIdentity string) {
 		rawMessage := reader.ReadAll()
 
 		var incomingMsg struct {
@@ -78,7 +83,7 @@ func (client *LivekitClient) AddChatHandler(ctx context.Context, streamId string
 			log.Printf("error encode message: %v", err)
 		}
 
-		err = stream.LocalParticipant.PublishData(msg, lksdk.WithDataPublishTopic("chat"))
+		err = stream.LocalParticipant.PublishData(msg, lksdk.WithDataPublishTopic(streamId))
 		if err != nil {
 			log.Printf("error send message to client: %v", err)
 		}

@@ -24,7 +24,7 @@ func (handler *StreamHandler) CreateStream(response http.ResponseWriter, request
 }
 
 func (handler *StreamHandler) CreateToken(response http.ResponseWriter, request *http.Request, user *models.BaseUserModel) {
-	token, err := handler.StreamService.CreateToken(request.Context(), request.Body, user.Id, user.Username)
+	token, err := handler.StreamService.CreateToken(request.Context(), request.Body, user.Id)
 	if err != nil {
 		apierrors.WriteHTTPError(response, err)
 		return
