@@ -7,11 +7,9 @@ import (
 	"github.com/xddpprog/internal/infrastructure/database/models"
 )
 
-
 type UserRepository struct {
 	DB *pgxpool.Pool
 }
-
 
 func (repo *UserRepository) GetUserByEmail(ctx context.Context, value string) (*models.UserModel, error) {
 	var user models.UserModel
@@ -26,7 +24,7 @@ func (repo *UserRepository) GetUserByEmail(ctx context.Context, value string) (*
 	return &user, nil
 }
 
-func (repo *UserRepository) GetUserById(ctx context.Context, userId int) (*models.BaseUserModel, error) {
+func (repo *UserRepository) GetUserById(ctx context.Context, userId string) (*models.BaseUserModel, error) {
 	var user models.BaseUserModel
 
 	err := repo.DB.QueryRow(ctx, "SELECT id, username, email FROM users WHERE id = $1", userId).Scan(
@@ -42,7 +40,7 @@ func (repo *UserRepository) GetUserById(ctx context.Context, userId int) (*model
 
 func (repo *UserRepository) CreateUser(ctx context.Context, userForm models.RegisterUserModel) (*models.BaseUserModel, error) {
 	var user models.BaseUserModel
-	
+
 	err := repo.DB.QueryRow(
 		ctx,
 		"INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email",

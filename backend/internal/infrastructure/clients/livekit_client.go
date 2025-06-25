@@ -2,12 +2,17 @@ package clients
 
 import (
 	"context"
+	"encoding/json"
+	"log"
 
 	lkauth "github.com/livekit/protocol/auth"
-	livekit "github.com/livekit/protocol/livekit"
+	"github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"github.com/xddpprog/internal/infrastructure/config"
+	"github.com/xddpprog/internal/infrastructure/database/models"
 )
+
+type MessageHandler func(ctx context.Context, streamId string, userId string, message string) (*models.StreamMessage, error)
 
 type LivekitClient struct {
 	ApiKey       string
@@ -26,12 +31,60 @@ func NewLivekitClient() *LivekitClient {
 	}
 }
 
-func (client *LivekitClient) CreateNewStream(context context.Context, streamName string) (*livekit.Room, error) {
-	stream, err := client.StreamClient.CreateRoom(context, &livekit.CreateRoomRequest{Name: streamName})
+func (client *LivekitClient) CreateNewStream(ctx context.Context, streamId string, userId string, messageHandler MessageHandler) (*livekit.Room, error) {
+	stream, err := client.StreamClient.CreateRoom(ctx, &livekit.CreateRoomRequest{Name: streamId})
 	if err != nil {
 		return nil, err
 	}
+
 	return stream, err
+}
+
+func (client *LivekitClient) AddChatHandler(ctx context.Context, streamId string, userId string, messageHandler MessageHandler) error {
+	stream, err := lksdk.ConnectToRoom(client.Url, lksdk.ConnectInfo{
+		APIKey:              client.ApiKey,
+		RoomName:            streamId,
+		APISecret:           client.ApiSecret,
+		ParticipantIdentity: userId,
+	}, lksdk.NewRoomCallback())
+	if err != nil {
+		log.Printf("failed connect to room: %v", err)
+		return err
+	}
+
+	stream.RegisterTextStreamHandler("chat", func(reader *lksdk.TextStreamReader, participantIdentity string) {
+		rawMessage := reader.ReadAll()
+
+		var incomingMsg struct {
+			Message  string `json:"message"`
+			UserID   string `json:"userId"`
+			Username string `json:"username"`
+		}
+
+		if err := json.Unmarshal([]byte(rawMessage), &incomingMsg); err != nil {
+			log.Printf("error decoding JSON message: %v", err)
+			return
+		}
+
+		messageDB, err := messageHandler(context.Background(), streamId, incomingMsg.UserID, incomingMsg.Message)
+		if err != nil {
+			log.Printf("create message error: %v", err)
+			return
+		}
+
+		messageDB.Username = incomingMsg.Username
+		msg, err := json.Marshal(messageDB)
+		if err != nil {
+			log.Printf("error encode message: %v", err)
+		}
+
+		err = stream.LocalParticipant.PublishData(msg, lksdk.WithDataPublishTopic("chat"))
+		if err != nil {
+			log.Printf("error send message to client: %v", err)
+		}
+		log.Printf("send message: %+v", messageDB)
+	})
+	return nil
 }
 
 func (client *LivekitClient) GetStream(context context.Context, streamName string) (*livekit.Room, error) {
@@ -51,8 +104,8 @@ func (client *LivekitClient) GetStream(context context.Context, streamName strin
 func (client *LivekitClient) CreateToken(context context.Context, streamName string, isStreamer bool, identity string) (string, error) {
 	canSubscribe := true
 	grant := &lkauth.VideoGrant{
-		RoomJoin:   true,
-		Room:       streamName,
+		RoomJoin:     true,
+		Room:         streamName,
 		CanPublish:   &isStreamer,
 		CanSubscribe: &canSubscribe,
 	}

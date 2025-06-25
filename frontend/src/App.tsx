@@ -5,6 +5,7 @@ import RegisterPage from './pages/auth/RegisterPage'
 import MainPage from './pages/MainPage'
 import CreateStream from './pages/stream/CreateStream'
 import StreamPage from './pages/stream/StreamPage'
+import { UserProvider } from './stores/providers'
 
 function App() {
 
@@ -17,17 +18,21 @@ function App() {
                     colorBgContainer: '#17191b',
                 },
             }}
+
         >
-            <BrowserRouter>
-                <Routes>
-                    <Route path="/auth/register" element={<RegisterPage></RegisterPage>}></Route>
-                    <Route path="/auth/login" element={<LoginPage></LoginPage>}></Route>
-                    <Route path="/" element={<MainPage></MainPage>}>
-                        <Route path="stream/:streamId" element={<StreamPage></StreamPage>}></Route>
-                        <Route path='stream/create' element={<CreateStream></CreateStream>}></Route>
-                    </Route>
-                </Routes>
-            </BrowserRouter>
+            <UserProvider>
+                <BrowserRouter>
+                    <Routes>
+                        <Route path="/auth/register" element={<RegisterPage></RegisterPage>}></Route>
+                        <Route path="/auth/login" element={<LoginPage></LoginPage>}></Route>
+                        <Route path="/" element={<MainPage></MainPage>}>
+                            <Route path="stream/:streamId" element={<StreamPage></StreamPage>}></Route>
+                            <Route path='stream/create' element={<CreateStream></CreateStream>}></Route>
+                        </Route>
+                    </Routes>
+                </BrowserRouter>
+            </UserProvider>
+
         </ConfigProvider>
     )
 }

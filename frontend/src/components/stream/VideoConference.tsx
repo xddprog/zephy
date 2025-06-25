@@ -22,7 +22,8 @@ import {
 } from '@livekit/components-react';
 import { RoomEvent, Track } from 'livekit-client';
 import React from 'react';
-import PersistentChat from './StreamChat';
+import type { StreamInfo } from '../../schemas/room';
+import StreamChat from './StreamChat';
 
 /**
  * @public
@@ -33,7 +34,7 @@ export interface VideoConferenceProps extends React.HTMLAttributes<HTMLDivElemen
 	chatMessageDecoder?: MessageDecoder;
 	/** @alpha */
 	SettingsComponent?: React.ComponentType;
-	streamId: string;
+	streamInfo: StreamInfo;
 }
 
 /**
@@ -56,7 +57,7 @@ export interface VideoConferenceProps extends React.HTMLAttributes<HTMLDivElemen
  */
 export function VideoConference({
 	SettingsComponent,
-	streamId,
+	streamInfo,
 	// chatMessageFormatter,
 	// chatMessageEncoder,
 	// chatMessageDecoder,
@@ -155,7 +156,7 @@ export function VideoConference({
 						)}
 						<ControlBar controls={{ chat: false, settings: !!SettingsComponent }} /> {/* Отключаем встроенный чат */}
 					</div>
-					<PersistentChat streamId={streamId} />
+					<StreamChat streamId={streamInfo.id} />
 					{SettingsComponent && (
 						<div
 							className="lk-settings-menu-modal"

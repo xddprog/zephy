@@ -5,13 +5,13 @@ import { axiosClientWithAuth } from '../../api/client/axiosClient';
 import { StreamService } from '../../api/services/streamService';
 import StreamsMenu from '../../components/stream/StreamsMenu';
 import StreamVideo from '../../components/stream/StreamVideo';
-import type { StreamInfo } from '../../schemas/room';
+import type { StreamInfo, TokenData } from '../../schemas/room';
 
 
 function StreamPage() {
     const { streamId } = useParams()
     const [streamInfo, setStreamInfo] = useState<StreamInfo>()
-    const [token, setToken] = useState<string>()
+    const [tokenData, setTokenData] = useState<TokenData>()
     const service = new StreamService(axiosClientWithAuth)
     const [messageApi, contextHolder] = message.useMessage();
 
@@ -25,8 +25,7 @@ function StreamPage() {
         })
         service.createToken({ streamId: streamId }).then(res => {
             if (res.status === 200) {
-                console.log(res.data);
-                setToken(res.data);
+                setTokenData(res.data);
             } else {
                 messageApi.error('Failed to get token for the room');
             }
@@ -36,13 +35,13 @@ function StreamPage() {
     return (
         <>
             {contextHolder}
-            {streamId && streamInfo && token && (
+            {streamId && streamInfo && tokenData && (
                 <div className='flex justify-between'>
                     <StreamsMenu />
                     <StreamVideo
                         streamId={streamId}
                         streamInfo={streamInfo}
-                        token={token}
+                        token={tokenData.token}
                     />
                 </div>
             )}

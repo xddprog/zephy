@@ -17,207 +17,198 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-
 type AuthService struct {
-    Config     *config.JwtConfig
-    Repository *repositories.UserRepository
+	Config     *config.JwtConfig
+	Repository *repositories.UserRepository
 }
-
 
 func (s *AuthService) HashPassword(password string) (string, *apierrors.APIError) {
-    hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-    if err != nil {
-        log.Printf("[INTERNAL] Failed to generate password hash: %v", err)
-        return "", &apierrors.ErrInternalServerError
-    }
-    return string(hashedPassword), nil
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("[INTERNAL] Failed to generate password hash: %v", err)
+		return "", &apierrors.ErrInternalServerError
+	}
+	return string(hashedPassword), nil
 }
-
 
 func (s *AuthService) CheckPassword(password, hashedPassword string) *apierrors.APIError {
-    err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-    if err != nil {
-        return &apierrors.ErrInvaliLoginData
-    }
-    return nil
+	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	if err != nil {
+		return &apierrors.ErrInvaliLoginData
+	}
+	return nil
 }
-
 
 func (s *AuthService) RegisterUser(
-    ctx context.Context,
-    userForm io.ReadCloser,
+	ctx context.Context,
+	userForm io.ReadCloser,
 ) (*models.AuthResponseModel, *apierrors.APIError) {
-    var userFormEncoded models.RegisterUserModel
-    
-    if err := json.NewDecoder(userForm).Decode(&userFormEncoded); err != nil {
-        return nil, &apierrors.ErrInvalidRequestBody
-    }
+	var userFormEncoded models.RegisterUserModel
 
-    checkExist, err := s.Repository.GetUserByEmail(ctx, userFormEncoded.Email)
-    if err != nil && err != pgx.ErrNoRows {
-        return nil, &apierrors.ErrInternalServerError
-    }
-    if checkExist != nil {
-        return nil, &apierrors.ErrUserAlreadyExist
-    }
+	if err := json.NewDecoder(userForm).Decode(&userFormEncoded); err != nil {
+		return nil, &apierrors.ErrInvalidRequestBody
+	}
 
-    if err := utils.ValidateForm(userFormEncoded); err != nil {
-        return nil, err
-    }
+	checkExist, err := s.Repository.GetUserByEmail(ctx, userFormEncoded.Email)
+	if err != nil && err != pgx.ErrNoRows {
+		return nil, &apierrors.ErrInternalServerError
+	}
+	if checkExist != nil {
+		return nil, &apierrors.ErrUserAlreadyExist
+	}
 
-    hashedPassword, hashErr := s.HashPassword(userFormEncoded.Password)
-    if hashErr != nil {
-        return nil, hashErr
-    }
+	if err := utils.ValidateForm(userFormEncoded); err != nil {
+		return nil, err
+	}
 
-    userFormEncoded.Password = hashedPassword
+	hashedPassword, hashErr := s.HashPassword(userFormEncoded.Password)
+	if hashErr != nil {
+		return nil, hashErr
+	}
 
-    user, err := s.Repository.CreateUser(ctx, userFormEncoded)
-    if err != nil {
-        return nil, &apierrors.ErrInternalServerError
-    }
+	userFormEncoded.Password = hashedPassword
 
-    tokenPair, tokenPairErr := s.createTokenPair(user.Id)
-    if tokenPairErr != nil {
-        return nil, tokenPairErr
-    }
+	user, err := s.Repository.CreateUser(ctx, userFormEncoded)
+	if err != nil {
+		return nil, &apierrors.ErrInternalServerError
+	}
 
-    return &models.AuthResponseModel{
-        TokenPair: *tokenPair,
-        User:      *user,
-    }, nil
+	tokenPair, tokenPairErr := s.createTokenPair(user.Id)
+	if tokenPairErr != nil {
+		return nil, tokenPairErr
+	}
+
+	return &models.AuthResponseModel{
+		TokenPair: *tokenPair,
+		User:      *user,
+	}, nil
 }
 
+func (s *AuthService) createTokenPair(userId string) (*models.TokenPair, *apierrors.APIError) {
+	accessToken, err := s.createToken(userId, utils.AccessToken)
+	if err != nil {
+		return nil, err
+	}
 
-func (s *AuthService) createTokenPair(userId int) (*models.TokenPair, *apierrors.APIError) {
-    accessToken, err := s.createToken(userId, utils.AccessToken)
-    if err != nil {
-        return nil, err
-    }
+	refreshToken, err := s.createToken(userId, utils.RefreshToken)
+	if err != nil {
+		return nil, err
+	}
 
-    refreshToken, err := s.createToken(userId, utils.RefreshToken)
-    if err != nil {
-        return nil, err
-    }
-
-    return &models.TokenPair{
-        AccessToken:  accessToken,
-        RefreshToken: refreshToken,
-    }, nil
+	return &models.TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
 }
 
+func (s *AuthService) createToken(userId string, tokenType string) (string, *apierrors.APIError) {
+	var expiresAt time.Duration
 
-func (s *AuthService) createToken(userId int, tokenType string) (string, *apierrors.APIError) {
-    var expiresAt time.Duration
+	switch tokenType {
+	case utils.AccessToken:
+		expiresAt = s.Config.AccessTokenTime
+	case utils.RefreshToken:
+		expiresAt = s.Config.RefreshTokenTime
+	}
 
-    switch tokenType {
-    case utils.AccessToken:
-        expiresAt = s.Config.AccessTokenTime
-    case utils.RefreshToken:
-        expiresAt = s.Config.RefreshTokenTime
-    }
+	token := jwt.NewWithClaims(s.Config.SigningMethod, jwt.MapClaims{
+		"sub": userId,
+		"exp": time.Now().Add(expiresAt).Unix(),
+	})
 
-    token := jwt.NewWithClaims(s.Config.SigningMethod, jwt.MapClaims{
-        "sub": userId,
-        "exp": time.Now().Add(expiresAt).Unix(),
-    })
-
-    tokenString, err := token.SignedString([]byte(s.Config.Secret))
-    if err != nil {
-        log.Printf("[INTERNAL] Failed to sign JWT token: %v", err)
-        return "", &apierrors.ErrInternalServerError
-    }
-    return tokenString, nil
+	tokenString, err := token.SignedString([]byte(s.Config.Secret))
+	if err != nil {
+		log.Printf("[INTERNAL] Failed to sign JWT token: %v", err)
+		return "", &apierrors.ErrInternalServerError
+	}
+	return tokenString, nil
 }
-
 
 func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*models.BaseUserModel, *apierrors.APIError) {
-    if tokenString == "" {
-        return nil, &apierrors.ErrInvalidToken
-    }
+	if tokenString == "" {
+		return nil, &apierrors.ErrInvalidToken
+	}
 
-    token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-        if token.Method != s.Config.SigningMethod {
-            return nil, &apierrors.ErrInvalidToken
-        }
-        return []byte(s.Config.Secret), nil
-    })
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		if token.Method != s.Config.SigningMethod {
+			return nil, &apierrors.ErrInvalidToken
+		}
+		return []byte(s.Config.Secret), nil
+	})
 
-    if err != nil {
-        log.Printf("Failed to parse token: %v", err)
-        return nil, &apierrors.ErrInvalidToken
-    }
+	if err != nil {
+		log.Printf("Failed to parse token: %v", err)
+		return nil, &apierrors.ErrInvalidToken
+	}
 
-    if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-        userID, ok := claims["sub"].(float64)
-        if !ok {
-            return nil, &apierrors.ErrInvalidToken
-        }
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		userID, ok := claims["sub"].(string)
+		if !ok {
+			return nil, &apierrors.ErrInvalidToken
+		}
 
-        user, err := s.Repository.GetUserById(ctx, int(userID))
-        if err != nil {
-            return nil, apierrors.CheckDBError(err, "user")
-        }
-        return user, nil
-    }
+		user, err := s.Repository.GetUserById(ctx, userID)
+		if err != nil {
+			return nil, apierrors.CheckDBError(err, "user")
+		}
+		return user, nil
+	}
 
-    return nil, &apierrors.ErrInvalidToken
+	return nil, &apierrors.ErrInvalidToken
 }
-
 
 func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*models.AuthResponseModel, *apierrors.APIError) {
-    user, err := s.ValidateToken(ctx, refreshToken)
-    if err != nil {
-        return nil, err
-    }
+	user, err := s.ValidateToken(ctx, refreshToken)
+	if err != nil {
+		return nil, err
+	}
 
-    accessToken, err := s.createToken(user.Id, utils.AccessToken)
-    if err != nil {
-        return nil, err
-    }
+	accessToken, err := s.createToken(user.Id, utils.AccessToken)
+	if err != nil {
+		return nil, err
+	}
 
-    return &models.AuthResponseModel{
-        TokenPair: models.TokenPair{
-            AccessToken:  accessToken,
-            RefreshToken: refreshToken,
-        },
-        User: *user,
-    }, nil
+	return &models.AuthResponseModel{
+		TokenPair: models.TokenPair{
+			AccessToken:  accessToken,
+			RefreshToken: refreshToken,
+		},
+		User: *user,
+	}, nil
 }
 
-
 func (s *AuthService) LoginUser(ctx context.Context, userForm io.ReadCloser) (*models.AuthResponseModel, *apierrors.APIError) {
-    var userFormEncoded models.LoginUserModel
-    err := json.NewDecoder(userForm).Decode(&userFormEncoded)
-    if err != nil {
-        return nil, &apierrors.ErrInvalidRequestBody
-    }
+	var userFormEncoded models.LoginUserModel
+	err := json.NewDecoder(userForm).Decode(&userFormEncoded)
+	if err != nil {
+		return nil, &apierrors.ErrInvalidRequestBody
+	}
 
-    if err := utils.ValidateForm(userFormEncoded); err != nil {
-        return nil, err
-    }
+	if err := utils.ValidateForm(userFormEncoded); err != nil {
+		return nil, err
+	}
 
-    user, err := s.Repository.GetUserByEmail(ctx, userFormEncoded.Email)
-    if err != nil { 
-        return nil, apierrors.CheckDBError(err, "user")
-    }
+	user, err := s.Repository.GetUserByEmail(ctx, userFormEncoded.Email)
+	if err != nil {
+		return nil, apierrors.CheckDBError(err, "user")
+	}
 
-    passErr := s.CheckPassword(userFormEncoded.Password, user.Password)
-    if passErr != nil {
-        return nil, passErr
-    }
+	passErr := s.CheckPassword(userFormEncoded.Password, user.Password)
+	if passErr != nil {
+		return nil, passErr
+	}
 
-    tokenPair, tokenPairErr := s.createTokenPair(user.Id)
-    if tokenPairErr != nil {
-        return nil, tokenPairErr
-    }
+	tokenPair, tokenPairErr := s.createTokenPair(user.Id)
+	if tokenPairErr != nil {
+		return nil, tokenPairErr
+	}
 
-    return &models.AuthResponseModel{
-        TokenPair: *tokenPair,
-        User:      models.BaseUserModel{
-            Id: user.Id, 
-            Email: user.Email, 
-            Username: user.Username,
-        },
-    }, nil
+	return &models.AuthResponseModel{
+		TokenPair: *tokenPair,
+		User: models.BaseUserModel{
+			Id:       user.Id,
+			Email:    user.Email,
+			Username: user.Username,
+		},
+	}, nil
 }

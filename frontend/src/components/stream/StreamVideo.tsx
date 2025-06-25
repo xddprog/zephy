@@ -23,7 +23,7 @@ function StreamVideo({ streamId, streamInfo, token }: StreamVideoProps) {
                 video={streamInfo?.isStreamer}
                 audio={streamInfo?.isStreamer}
             >
-                <VideoConference streamId={streamId} />
+                <VideoConference streamInfo={streamInfo} />
             </LiveKitRoom>
         </div>
     );

@@ -1,5 +1,5 @@
 import type { AxiosInstance, AxiosResponse } from "axios";
-import type { CreateStreamInterface, CreateTokenInterface, StreamInfo, StreamMessage} from "../../schemas/room";
+import type { CreateStreamInterface, CreateTokenInterface, StreamInfo, StreamMessage, TokenData} from "../../schemas/room";
 
 
 export class StreamService {
@@ -15,7 +15,7 @@ export class StreamService {
         return this.axiosInstance.post(`${this.BASE_URL}`, roomData);
     }
 
-    public async createToken(data: CreateTokenInterface): Promise<AxiosResponse> {
+    public async createToken(data: CreateTokenInterface): Promise<AxiosResponse<TokenData>> {
         return this.axiosInstance.post(`${this.BASE_URL}/token`, data);
     }
 

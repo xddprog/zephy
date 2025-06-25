@@ -29,13 +29,11 @@ func (handler *StreamHandler) CreateToken(response http.ResponseWriter, request 
 		apierrors.WriteHTTPError(response, err)
 		return
 	}
-	utils.WriteJSONResponse(response, http.StatusOK, map[string]interface{}{
-		"token": token,
-	})
+	utils.WriteJSONResponse(response, http.StatusOK, token)
 }
 
 func (handler *StreamHandler) GetStreamMessages(response http.ResponseWriter, request *http.Request, user *models.BaseUserModel) {
-	streamName := request.URL.Query().Get("streamId")
+	streamName := request.PathValue("streamId")
 	if streamName == "" {
 		apierrors.WriteHTTPError(response, &apierrors.ErrInvalidRequestBody)
 		return
@@ -65,5 +63,6 @@ func (handler *StreamHandler) SetupRoutes(server *http.ServeMux, baseUrl string,
 	server.HandleFunc("POST "+baseUrl+"/stream", authDeps.Protected(handler.CreateStream))
 	server.HandleFunc("POST "+baseUrl+"/stream/token", authDeps.Protected(handler.CreateToken))
 	server.HandleFunc("GET "+baseUrl+"/stream/{streamId}", authDeps.Protected(handler.GetStreamInfo))
-	server.HandleFunc("GET "+baseUrl+"/stream/messages", authDeps.Protected(handler.GetStreamMessages))
+	server.HandleFunc("GET "+baseUrl+"/stream/{streamId}/messages", authDeps.Protected(handler.GetStreamMessages))
+
 }

@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 
 	"github.com/xddpprog/internal/core/repositories"
 	"github.com/xddpprog/internal/infrastructure/clients"
 	"github.com/xddpprog/internal/infrastructure/database/models"
 	apierrors "github.com/xddpprog/internal/infrastructure/errors"
-	"github.com/xddpprog/internal/utils"
 )
 
 type StreamService struct {
@@ -17,12 +17,17 @@ type StreamService struct {
 	LivekitClient clients.LivekitClient
 }
 
-func (service *StreamService) GetStreamInfo(context context.Context, body io.ReadCloser, userId int, streamId string) (*models.StreamInfo, *apierrors.APIError) {
-	streamInfo, err := service.Repository.GetStreamInfo(context, streamId)
+func (service *StreamService) GetStreamInfo(ctx context.Context, body io.ReadCloser, userId string, streamId string) (*models.StreamInfo, *apierrors.APIError) {
+	streamInfo, err := service.Repository.GetStreamInfo(ctx, streamId)
 	if err != nil {
 		return nil, apierrors.CheckDBError(err, "stream")
 	}
 	streamInfo.IsStreamer = streamInfo.StreamerInfo.Id == userId
+
+	err = service.LivekitClient.AddChatHandler(ctx, streamId, userId, service.Repository.CreateMessage)
+	if err != nil {
+		log.Printf("error add chat handler: %v", err)
+	}
 	return streamInfo, nil
 }
 
@@ -34,7 +39,7 @@ func (service *StreamService) GetStreamMessages(context context.Context, streamN
 	return messages, nil
 }
 
-func (service *StreamService) CreateToken(context context.Context, form io.ReadCloser, userId int, username string) (*models.TokenResponse, *apierrors.APIError) {
+func (service *StreamService) CreateToken(context context.Context, form io.ReadCloser, userId string, username string) (*models.TokenResponse, *apierrors.APIError) {
 	var createTokenRequest models.CreateTokenRequest
 
 	if err := json.NewDecoder(form).Decode(&createTokenRequest); err != nil {
@@ -65,15 +70,11 @@ func (service *StreamService) CreateToken(context context.Context, form io.ReadC
 	return &models.TokenResponse{Token: token}, nil
 }
 
-func (service *StreamService) CreateStream(ctx context.Context, form io.Reader, userId int) (*models.CreateStreamResponse, *apierrors.APIError) {
+func (service *StreamService) CreateStream(ctx context.Context, form io.Reader, userId string) (*models.CreateStreamResponse, *apierrors.APIError) {
 	var createStreamRequest models.CreateStreamRequest
 
 	if err := json.NewDecoder(form).Decode(&createStreamRequest); err != nil {
 		return nil, &apierrors.ErrInvalidRequestBody
-	}
-
-	if err := utils.ValidateForm(createStreamRequest); err != nil {
-		return nil, err
 	}
 
 	streamId, err := service.Repository.CreateStream(
@@ -83,8 +84,14 @@ func (service *StreamService) CreateStream(ctx context.Context, form io.Reader, 
 		return nil, apierrors.CheckDBError(err, "stream")
 	}
 
-	_, err = service.LivekitClient.CreateNewStream(ctx, streamId)
+	err = service.LivekitClient.AddChatHandler(ctx, streamId, userId, service.Repository.CreateMessage)
 	if err != nil {
+		log.Printf("error add chat handler: %v", err)
+	}
+
+	_, err = service.LivekitClient.CreateNewStream(ctx, streamId, userId, service.Repository.CreateMessage)
+	if err != nil {
+		log.Printf("failed to create stream: %v", err)
 		return nil, &apierrors.ErrFailedToCreateStream
 	}
 	return &models.CreateStreamResponse{Id: streamId}, nil

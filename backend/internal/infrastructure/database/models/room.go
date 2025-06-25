@@ -7,11 +7,9 @@ type CreateStreamRequest struct {
 	Description string `json:"description"`
 }
 
-
 type CreateStreamResponse struct {
 	Id string `json:"id"`
 }
-
 
 type StreamInfo struct {
 	Id           string        `json:"id"`
@@ -25,8 +23,8 @@ type StreamInfo struct {
 
 type StreamMessage struct {
 	Id        int    `json:"id"`
-	CreatedAt int64  `json:"createdAt"`
-	UserId    int    `json:"userId"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UserId    string `json:"userId"`
 	Username  string `json:"username"`
 	Message   string `json:"message"`
 }
@@ -37,9 +35,9 @@ type StreamData struct {
 }
 
 type CreateTokenRequest struct {
-    StreamId string `json:"streamId"`
+	StreamId string `json:"streamId"`
 }
 
 type TokenResponse struct {
-    Token string `json:"token"`
+	Token string `json:"token"`
 }

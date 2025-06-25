@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/xddpprog/internal/core/services"
 	deps "github.com/xddpprog/internal/handlers/dependencies"
@@ -20,13 +19,7 @@ type UserHandler struct {
 func (handler *UserHandler) GetUserById(response http.ResponseWriter, request *http.Request, user *models.BaseUserModel) {
 	response.Header().Set("Content-Type", "application/json")
 
-	userId, err := strconv.Atoi(request.PathValue("id"))
-	if err != nil {
-		apierrors.WriteHTTPError(response, err)
-		return
-	}
-
-	userGet, serviceErr := handler.UserService.GetUserById(request.Context(), userId)
+	userGet, serviceErr := handler.UserService.GetUserById(request.Context(), request.PathValue("id"))
 	if serviceErr != nil {
 		apierrors.WriteHTTPError(response, serviceErr)
 		return

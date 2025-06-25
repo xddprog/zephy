@@ -27,3 +27,7 @@ export interface StreamMessage {
     username: string;
     message: string;
 }
+
+export interface TokenData {
+    token: string
+}
